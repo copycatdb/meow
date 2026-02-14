@@ -1,65 +1,99 @@
-# meow 📟
+# 🐱 meow
 
-CLI for SQL Server. psql, but with attitude.
+A beautiful TUI client for Microsoft SQL Server, powered by [tabby](https://github.com/copycatdb/tabby).
 
-Part of [CopyCat](https://github.com/copycatdb) 🐱
+> Think `pgcli` meets `lazygit` — fast, cross-platform, single binary.
 
-## What is this?
+Part of the [CopyCat](https://github.com/copycatdb) ecosystem.
 
-An interactive command-line client for SQL Server. Think `psql` or `sqlcmd`, but one that doesnt make you want to throw your laptop out the window.
+![screenshot placeholder](https://via.placeholder.com/800x500?text=meow+TUI+screenshot+coming+soon)
+
+## Installation
+
+Build from source (requires Rust 1.85+):
 
 ```bash
-$ meow -S localhost,1433 -U sa
-Password: ****
-Connected to SQL Server 2022 (16.0.4135.4)
-
-mydb> SELECT TOP 5 name, salary FROM employees ORDER BY salary DESC;
-┌──────────────┬──────────┐
-│ name         │ salary   │
-├──────────────┼──────────┤
-│ Alice Chen   │ 185000   │
-│ Bob Kumar    │ 172000   │
-│ Carol Smith  │ 168000   │
-│ Dave Johnson │ 155000   │
-│ Eve Williams │ 149000   │
-└──────────────┴──────────┘
-5 rows (12ms)
-
-mydb> \dt
-Tables in mydb:
-  employees    (4 columns, ~10000 rows)
-  departments  (3 columns, ~50 rows)
-  orders       (8 columns, ~1.2M rows)
+git clone https://github.com/copycatdb/meow.git
+cd meow
+cargo build --release
+# Binary at ./target/release/meow
 ```
 
-## Why not sqlcmd?
+## Usage
 
-Have you *used* sqlcmd? The one where:
-- Output alignment is a suggestion, not a feature
-- You have to type `GO` after every statement like its 1995
-- Tab completion is a myth
-- Ctrl+C doesnt cancel, it exits
-- The "new" version requires .NET 6 runtime
+### TUI Mode (default)
 
-meow is what sqlcmd would be if it was designed by someone who actually uses a terminal.
+```bash
+meow -S localhost,1433 -U sa -P yourpassword --trust-cert
+```
 
-## Features (planned)
+This launches the interactive TUI with three panes: object browser, SQL editor, and results.
 
-- Syntax highlighting
-- Auto-complete (tables, columns, functions)
-- Pretty-printed tables (with actual alignment)
-- `\d` describe commands (like psql)
-- Query history with search
-- `.output` to file/CSV/JSON
-- No `GO` required. Were not animals.
+### CLI Mode
 
-## Status
+```bash
+# Interactive REPL
+meow --cli -S localhost,1433 -U sa -P yourpassword --trust-cert
 
-🚧 Coming soon. Currently sharpening claws.
+# Pipe a query
+echo "SELECT 1 AS test" | meow -S localhost,1433 -U sa -P yourpassword --trust-cert
 
-## Attribution
+# Execute from file
+meow -S localhost,1433 -U sa -P yourpassword --trust-cert -i query.sql
 
-Inspired by [psql](https://www.postgresql.org/docs/current/app-psql.html), the CLI that every other database CLI wishes it could be. And a gentle roast of [sqlcmd](https://learn.microsoft.com/en-us/sql/tools/sqlcmd/sqlcmd-utility), which has served us faithfully despite everything.
+# Output as CSV
+meow -S localhost,1433 -U sa -P yourpassword --trust-cert -i query.sql --format csv
+
+# Output as JSON
+echo "SELECT name FROM sys.databases" | meow -S localhost,1433 -U sa -P yourpassword --trust-cert --format json
+```
+
+## Options
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `-S, --server` | Server address (`host,port`) | `localhost,1433` |
+| `-U, --user` | SQL login username | — |
+| `-P, --password` | SQL login password | — |
+| `-d, --database` | Initial database | `master` |
+| `--trust-cert` | Trust server certificate | off |
+| `--cli` | Non-interactive CLI mode | off |
+| `-i, --input` | Execute SQL from file | — |
+| `-o, --output` | Write results to file | — |
+| `--format` | Output format: `table`, `csv`, `json` | `table` |
+
+## Key Bindings
+
+| Key | Action |
+|-----|--------|
+| `Ctrl+Enter` / `F5` | Execute query |
+| `Tab` | Cycle focus: Editor → Results → Sidebar |
+| `Ctrl+D` | Toggle sidebar (object browser) |
+| `Ctrl+L` | Clear editor |
+| `Ctrl+Q` | Quit |
+| `F1` | Toggle help overlay |
+| `↑/↓` | Scroll results (when focused) |
+| `Enter` | Expand/collapse sidebar node |
+
+## Architecture
+
+```
+src/
+├── main.rs          — entry point, CLI args, mode dispatch
+├── app.rs           — App state machine
+├── tui/
+│   ├── mod.rs       — TUI setup/teardown, event loop
+│   ├── ui.rs        — layout and rendering
+│   ├── editor.rs    — SQL editor pane
+│   ├── results.rs   — result grid/table pane
+│   ├── sidebar.rs   — object browser
+│   └── statusbar.rs — connection info, timing
+├── db/
+│   ├── mod.rs       — connection management
+│   └── query.rs     — query execution, result formatting
+└── cli/
+    └── mod.rs       — non-interactive CLI mode
+```
 
 ## License
 

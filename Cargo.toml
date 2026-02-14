@@ -1,0 +1,17 @@
+[package]
+name = "meow"
+version = "0.1.0"
+edition = "2024"
+description = "A TUI SQL Server client powered by tabby"
+license = "MIT"
+repository = "https://github.com/copycatdb/meow"
+
+[dependencies]
+tabby = { git = "https://github.com/copycatdb/tabby.git", branch = "main" }
+ratatui = "0.29"
+crossterm = "0.28"
+tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["compat"] }
+clap = { version = "4", features = ["derive"] }
+tui-textarea = "0.7"
+unicode-width = "0.2"
