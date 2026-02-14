@@ -2,12 +2,10 @@
 
 pub mod query;
 
-use claw::{AuthMethod, Client, Config};
-use tokio::net::TcpStream;
-use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
+use claw::{AuthMethod, Config, TcpClient};
 
-/// A handle wrapping the tabby client.
-pub type ConnectionHandle = Client<Compat<TcpStream>>;
+/// A handle wrapping the claw client.
+pub type ConnectionHandle = TcpClient;
 
 /// Connect to SQL Server using the given parameters.
 pub async fn connect(
@@ -28,10 +26,6 @@ pub async fn connect(
         config.trust_cert();
     }
 
-    let addr = config.get_addr();
-    let tcp = TcpStream::connect(&addr).await?;
-    tcp.set_nodelay(true)?;
-
-    let client = Client::connect(config, tcp.compat_write()).await?;
+    let client = claw::connect(config).await?;
     Ok(client)
 }
