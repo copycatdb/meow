@@ -167,7 +167,7 @@ const SQL_KEYWORDS: &[&str] = &[
 ];
 
 /// Autocomplete popup state.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Autocomplete {
     /// Whether the popup is currently visible.
     pub active: bool,
@@ -177,17 +177,6 @@ pub struct Autocomplete {
     pub selected: usize,
     /// The prefix being matched (the partial word the user typed).
     pub prefix: String,
-}
-
-impl Default for Autocomplete {
-    fn default() -> Self {
-        Self {
-            active: false,
-            suggestions: Vec::new(),
-            selected: 0,
-            prefix: String::new(),
-        }
-    }
 }
 
 impl Autocomplete {

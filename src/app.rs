@@ -248,10 +248,10 @@ fn get_flat_node_mut_inner<'a>(
             return Some(node);
         }
         *idx += 1;
-        if node.expanded {
-            if let Some(found) = get_flat_node_mut_inner(&mut node.children, target, idx) {
-                return Some(found);
-            }
+        if node.expanded
+            && let Some(found) = get_flat_node_mut_inner(&mut node.children, target, idx)
+        {
+            return Some(found);
         }
     }
     None

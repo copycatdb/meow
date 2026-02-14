@@ -63,12 +63,11 @@ async fn run_loop(
         terminal.draw(|frame| ui::draw(frame, app))?;
 
         // Poll for events with a timeout so we can do async work
-        if event::poll(std::time::Duration::from_millis(100))? {
-            if let Event::Key(key) = event::read()? {
-                if handle_key(key, app, client).await? {
-                    break;
-                }
-            }
+        if event::poll(std::time::Duration::from_millis(100))?
+            && let Event::Key(key) = event::read()?
+            && handle_key(key, app, client).await?
+        {
+            break;
         }
 
         if app.should_quit {
