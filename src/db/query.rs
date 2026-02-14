@@ -66,8 +66,127 @@ fn format_sql_value(val: &SqlValue<'_>) -> String {
         SqlValue::Numeric(None) => "NULL".to_string(),
         SqlValue::Xml(Some(x)) => format!("{:?}", x),
         SqlValue::Xml(None) => "NULL".to_string(),
+        SqlValue::DateTime(Some(dt)) => {
+            // Days since 1900-01-01, seconds_fragments in 1/300s
+            let unix_days = -25567i64 + dt.days() as i64;
+            let (year, month, day) = days_to_ymd(unix_days);
+            let total_secs = dt.seconds_fragments() as f64 / 300.0;
+            let hours = (total_secs / 3600.0) as u32;
+            let mins = ((total_secs % 3600.0) / 60.0) as u32;
+            let secs = (total_secs % 60.0) as u32;
+            format!(
+                "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
+                year, month, day, hours, mins, secs
+            )
+        }
+        SqlValue::DateTime(None) => "NULL".to_string(),
+        SqlValue::SmallDateTime(Some(dt)) => {
+            let unix_days = -25567i64 + dt.days() as i64;
+            let (year, month, day) = days_to_ymd(unix_days);
+            let total_secs = dt.seconds_fragments() as f64 / 300.0;
+            let hours = (total_secs / 3600.0) as u32;
+            let mins = ((total_secs % 3600.0) / 60.0) as u32;
+            format!(
+                "{:04}-{:02}-{:02} {:02}:{:02}",
+                year, month, day, hours, mins
+            )
+        }
+        SqlValue::SmallDateTime(None) => "NULL".to_string(),
+        SqlValue::Date(Some(d)) => {
+            let (year, month, day) = days_to_ymd(d.days() as i64 - 719163);
+            format!("{:04}-{:02}-{:02}", year, month, day)
+        }
+        SqlValue::Date(None) => "NULL".to_string(),
+        SqlValue::Time(Some(t)) => {
+            let nanos = t.increments() as f64 * 10f64.powi(9 - t.scale() as i32);
+            let total_secs = (nanos / 1_000_000_000.0) as u64;
+            let hours = total_secs / 3600;
+            let mins = (total_secs % 3600) / 60;
+            let secs = total_secs % 60;
+            let frac = (nanos % 1_000_000_000.0) as u64;
+            if frac > 0 {
+                format!("{:02}:{:02}:{:02}.{:07}", hours, mins, secs, frac / 100)
+            } else {
+                format!("{:02}:{:02}:{:02}", hours, mins, secs)
+            }
+        }
+        SqlValue::Time(None) => "NULL".to_string(),
+        SqlValue::DateTime2(Some(dt2)) => {
+            let (year, month, day) = days_to_ymd(dt2.date().days() as i64 - 719163);
+            let t = dt2.time();
+            let nanos = t.increments() as f64 * 10f64.powi(9 - t.scale() as i32);
+            let total_secs = (nanos / 1_000_000_000.0) as u64;
+            let hours = total_secs / 3600;
+            let mins = (total_secs % 3600) / 60;
+            let secs = total_secs % 60;
+            let frac = (nanos % 1_000_000_000.0) as u64;
+            if frac > 0 {
+                format!(
+                    "{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:07}",
+                    year,
+                    month,
+                    day,
+                    hours,
+                    mins,
+                    secs,
+                    frac / 100
+                )
+            } else {
+                format!(
+                    "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
+                    year, month, day, hours, mins, secs
+                )
+            }
+        }
+        SqlValue::DateTime2(None) => "NULL".to_string(),
+        SqlValue::DateTimeOffset(Some(dto)) => {
+            let dt2 = dto.datetime2();
+            let (year, month, day) = days_to_ymd(dt2.date().days() as i64 - 719163);
+            let t = dt2.time();
+            let nanos = t.increments() as f64 * 10f64.powi(9 - t.scale() as i32);
+            let total_secs = (nanos / 1_000_000_000.0) as u64;
+            let hours = total_secs / 3600;
+            let mins = (total_secs % 3600) / 60;
+            let secs = total_secs % 60;
+            let offset_mins = dto.offset();
+            let sign = if offset_mins >= 0 { '+' } else { '-' };
+            let abs_offset = offset_mins.unsigned_abs();
+            format!(
+                "{:04}-{:02}-{:02} {:02}:{:02}:{:02} {}{:02}:{:02}",
+                year,
+                month,
+                day,
+                hours,
+                mins,
+                secs,
+                sign,
+                abs_offset / 60,
+                abs_offset % 60
+            )
+        }
+        SqlValue::DateTimeOffset(None) => "NULL".to_string(),
         other => format!("{:?}", other),
     }
+}
+
+/// Convert days since Unix epoch (1970-01-01) to (year, month, day).
+/// Uses Howard Hinnant's civil calendar algorithm.
+fn days_to_ymd(z: i64) -> (i64, u32, u32) {
+    let z = z + 719468; // shift to 0000-03-01 epoch
+    let era = if z >= 0 {
+        z / 146097
+    } else {
+        (z - 146096) / 146097
+    };
+    let doe = (z - era * 146097) as u64;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = (yoe as i64) + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if m <= 2 { y + 1 } else { y };
+    (y, m as u32, d as u32)
 }
 
 /// Simple hex encoding for binary data.
