@@ -117,6 +117,7 @@ async fn handle_key(
                     Ok(result) => {
                         app.result = result;
                         app.result_scroll = 0;
+                        app.result_col_scroll = 0;
                     }
                     Err(e) => {
                         app.result = crate::app::QueryResult {
@@ -183,6 +184,8 @@ async fn handle_key(
         FocusPane::Results => match key.code {
             KeyCode::Up => app.scroll_results_up(),
             KeyCode::Down => app.scroll_results_down(),
+            KeyCode::Left => app.scroll_results_left(),
+            KeyCode::Right => app.scroll_results_right(),
             _ => {}
         },
         FocusPane::Sidebar => match key.code {

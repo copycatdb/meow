@@ -52,8 +52,10 @@ pub struct App {
     pub result: QueryResult,
     /// Object browser tree.
     pub objects: Vec<ObjectNode>,
-    /// Scroll offset in the results table.
+    /// Scroll offset in the results table (rows).
     pub result_scroll: usize,
+    /// Horizontal scroll offset in the results table (columns).
+    pub result_col_scroll: usize,
     /// Sidebar scroll offset.
     pub sidebar_scroll: usize,
     /// Connection info string for the status bar.
@@ -90,6 +92,7 @@ impl App {
             result: QueryResult::default(),
             objects: Vec::new(),
             result_scroll: 0,
+            result_col_scroll: 0,
             sidebar_scroll: 0,
             connection_info: format!("{}:{}", host, port),
             current_database: database.to_string(),
@@ -202,6 +205,19 @@ impl App {
     /// Scroll results up.
     pub fn scroll_results_up(&mut self) {
         self.result_scroll = self.result_scroll.saturating_sub(1);
+    }
+
+    /// Scroll results right (horizontal).
+    pub fn scroll_results_right(&mut self) {
+        if !self.result.columns.is_empty() && self.result_col_scroll + 1 < self.result.columns.len()
+        {
+            self.result_col_scroll += 1;
+        }
+    }
+
+    /// Scroll results left (horizontal).
+    pub fn scroll_results_left(&mut self) {
+        self.result_col_scroll = self.result_col_scroll.saturating_sub(1);
     }
 
     /// Scroll sidebar down.

@@ -1,4 +1,4 @@
-//! Results table pane with scrolling.
+//! Results table pane with vertical and horizontal scrolling.
 
 use crate::app::{App, FocusPane};
 use ratatui::prelude::*;
@@ -15,16 +15,30 @@ pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
 
     let result = &app.result;
 
-    // Title with row count and timing
+    // Title with row count, timing, and scroll hint
     let title = if let Some(ref err) = result.error {
         format!(" Results — Error: {} ", err)
     } else if result.rows.is_empty() && result.columns.is_empty() {
         " Results ".to_string()
     } else {
+        let col_info = if result.columns.len() > 1 {
+            format!(
+                " (cols {}-{}/{})",
+                app.result_col_scroll + 1,
+                result
+                    .columns
+                    .len()
+                    .min(app.result_col_scroll + visible_col_count(app, area)),
+                result.columns.len()
+            )
+        } else {
+            String::new()
+        };
         format!(
-            " Results — {} rows  {}ms ",
+            " Results — {} rows  {}ms{} ",
             result.rows.len(),
-            result.elapsed_ms
+            result.elapsed_ms,
+            col_info
         )
     };
 
@@ -34,7 +48,6 @@ pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
         .border_style(border_style);
 
     if result.columns.is_empty() {
-        // No results yet
         let msg = if let Some(ref err) = result.error {
             err.clone()
         } else if app.query_running {
@@ -49,30 +62,10 @@ pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
         return;
     }
 
-    // Build header
-    let header_cells: Vec<Cell> = result
-        .columns
-        .iter()
-        .map(|c| Cell::from(c.as_str()).style(Style::default().fg(Color::Cyan).bold()))
-        .collect();
-    let header = Row::new(header_cells).height(1);
+    let col_offset = app.result_col_scroll;
 
-    // Build rows with scroll offset
-    let visible_rows: Vec<Row> = result
-        .rows
-        .iter()
-        .skip(app.result_scroll)
-        .map(|row_data| {
-            let cells: Vec<Cell> = row_data
-                .iter()
-                .map(|val| Cell::from(val.as_str()))
-                .collect();
-            Row::new(cells)
-        })
-        .collect();
-
-    // Column widths — auto-size based on content
-    let widths: Vec<Constraint> = result
+    // Compute column widths for ALL columns (needed for slicing)
+    let all_widths: Vec<u16> = result
         .columns
         .iter()
         .enumerate()
@@ -83,8 +76,50 @@ pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
                 .map(|r| r.get(i).map(|s| s.len()).unwrap_or(0))
                 .max()
                 .unwrap_or(0);
-            let w = col.len().max(max_data).min(40) as u16 + 2;
-            Constraint::Length(w)
+            col.len().max(max_data).min(50) as u16 + 2
+        })
+        .collect();
+
+    // Figure out how many columns fit in the available width (minus borders)
+    let available_width = area.width.saturating_sub(2); // borders
+    let mut total_w = 0u16;
+    let mut visible_end = col_offset;
+    for i in col_offset..all_widths.len() {
+        let next = total_w + all_widths[i];
+        if next > available_width && visible_end > col_offset {
+            break;
+        }
+        total_w = next;
+        visible_end = i + 1;
+    }
+
+    // Slice columns
+    let visible_cols = col_offset..visible_end;
+    let widths: Vec<Constraint> = visible_cols
+        .clone()
+        .map(|i| Constraint::Length(all_widths[i]))
+        .collect();
+
+    // Build header (visible columns only)
+    let header_cells: Vec<Cell> = visible_cols
+        .clone()
+        .map(|i| {
+            Cell::from(result.columns[i].as_str()).style(Style::default().fg(Color::Cyan).bold())
+        })
+        .collect();
+    let header = Row::new(header_cells).height(1);
+
+    // Build rows with vertical scroll, horizontal slice
+    let visible_rows: Vec<Row> = result
+        .rows
+        .iter()
+        .skip(app.result_scroll)
+        .map(|row_data| {
+            let cells: Vec<Cell> = visible_cols
+                .clone()
+                .map(|i| Cell::from(row_data.get(i).map(|s| s.as_str()).unwrap_or("")))
+                .collect();
+            Row::new(cells)
         })
         .collect();
 
@@ -94,4 +129,27 @@ pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
         .row_highlight_style(Style::default().bg(Color::Rgb(49, 50, 68)));
 
     frame.render_widget(table, area);
+}
+
+/// Estimate how many columns are visible from the current scroll offset.
+fn visible_col_count(app: &App, area: Rect) -> usize {
+    let available = area.width.saturating_sub(2) as usize;
+    let mut total = 0;
+    let mut count = 0;
+    for i in app.result_col_scroll..app.result.columns.len() {
+        let max_data = app
+            .result
+            .rows
+            .iter()
+            .map(|r| r.get(i).map(|s| s.len()).unwrap_or(0))
+            .max()
+            .unwrap_or(0);
+        let w = app.result.columns[i].len().max(max_data).min(50) + 2;
+        total += w;
+        if total > available && count > 0 {
+            break;
+        }
+        count += 1;
+    }
+    count.max(1)
 }
