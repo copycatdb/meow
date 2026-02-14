@@ -7,7 +7,7 @@ license = "MIT"
 repository = "https://github.com/copycatdb/meow"
 
 [dependencies]
-tabby = { git = "https://github.com/copycatdb/tabby.git", branch = "main" }
+claw = { git = "https://github.com/copycatdb/claw.git", branch = "main" }
 ratatui = "0.29"
 crossterm = "0.28"
 tokio = { version = "1", features = ["full"] }

@@ -303,6 +303,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a822ea5bc7590f9d40f1ba12c0dc3c2760f3482c6984db1573ad11031420831"
 
 [[package]]
+name = "claw"
+version = "0.1.0"
+source = "git+https://github.com/copycatdb/claw.git?branch=main#817413ba7901cc4beca6810c14784d30a5a4b46b"
+dependencies = [
+ "tabby",
+ "uuid",
+]
+
+[[package]]
 name = "cmake"
 version = "0.1.57"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -753,9 +762,9 @@ name = "meow"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "claw",
  "crossterm",
  "ratatui",
- "tabby",
  "tokio",
  "tokio-util",
  "tui-textarea",
@@ -1358,7 +1367,7 @@ dependencies = [
 [[package]]
 name = "tabby"
 version = "0.1.0"
-source = "git+https://github.com/copycatdb/tabby.git?branch=main#80cbd749b5bbbe9bf94aec272f8f8d002ab5ca5b"
+source = "git+https://github.com/copycatdb/tabby.git?branch=main#6aec99d1b1fc804c09c934364fc016b6836d82a9"
 dependencies = [
  "async-trait",
  "asynchronous-codec",

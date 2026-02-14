@@ -2,8 +2,8 @@
 
 use crate::app::{ObjectNode, QueryResult};
 use crate::db::ConnectionHandle;
+use claw::SqlValue;
 use std::time::Instant;
-use tabby::SqlValue;
 
 /// Execute a SQL query and return structured results.
 pub async fn execute_query(
