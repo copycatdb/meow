@@ -84,8 +84,8 @@ pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
     let available_width = area.width.saturating_sub(2); // borders
     let mut total_w = 0u16;
     let mut visible_end = col_offset;
-    for i in col_offset..all_widths.len() {
-        let next = total_w + all_widths[i];
+    for (i, &w) in all_widths.iter().enumerate().skip(col_offset) {
+        let next = total_w + w;
         if next > available_width && visible_end > col_offset {
             break;
         }
