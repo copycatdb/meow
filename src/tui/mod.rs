@@ -133,6 +133,7 @@ async fn handle_key(
                                     app.result = result;
                                     app.result_scroll = 0;
                                     app.result_col_scroll = 0;
+                                    app.current_result_set = 0;
                                 }
                                 Err(e) => {
                                     app.result = crate::app::QueryResult {
@@ -144,34 +145,28 @@ async fn handle_key(
                             app.query_running = false;
                         }
                         commands::CommandAction::DisplayMessage { columns, rows } => {
-                            app.result = crate::app::QueryResult {
-                                columns,
-                                rows,
-                                elapsed_ms: 0,
-                                error: None,
-                            };
+                            app.result = crate::app::QueryResult::single(columns, rows, 0);
                             app.result_scroll = 0;
                             app.result_col_scroll = 0;
+                            app.current_result_set = 0;
                         }
                         commands::CommandAction::ToggleExpanded => {
                             app.expanded_mode = !app.expanded_mode;
                             let state = if app.expanded_mode { "ON" } else { "OFF" };
-                            app.result = crate::app::QueryResult {
-                                columns: vec!["Status".to_string()],
-                                rows: vec![vec![format!("Expanded display is {}", state)]],
-                                elapsed_ms: 0,
-                                error: None,
-                            };
+                            app.result = crate::app::QueryResult::single(
+                                vec!["Status".to_string()],
+                                vec![vec![format!("Expanded display is {}", state)]],
+                                0,
+                            );
                         }
                         commands::CommandAction::ToggleTiming => {
                             app.show_timing = !app.show_timing;
                             let state = if app.show_timing { "ON" } else { "OFF" };
-                            app.result = crate::app::QueryResult {
-                                columns: vec!["Status".to_string()],
-                                rows: vec![vec![format!("Timing is {}", state)]],
-                                elapsed_ms: 0,
-                                error: None,
-                            };
+                            app.result = crate::app::QueryResult::single(
+                                vec!["Status".to_string()],
+                                vec![vec![format!("Timing is {}", state)]],
+                                0,
+                            );
                         }
                         commands::CommandAction::Quit => return Ok(true),
                     }
@@ -182,6 +177,7 @@ async fn handle_key(
                             app.result = result;
                             app.result_scroll = 0;
                             app.result_col_scroll = 0;
+                            app.current_result_set = 0;
                         }
                         Err(e) => {
                             app.result = crate::app::QueryResult {
@@ -251,6 +247,8 @@ async fn handle_key(
             KeyCode::Down => app.scroll_results_down(),
             KeyCode::Left => app.scroll_results_left(),
             KeyCode::Right => app.scroll_results_right(),
+            KeyCode::Char('[') => app.prev_result_set(),
+            KeyCode::Char(']') => app.next_result_set(),
             _ => {}
         },
         FocusPane::Sidebar => match key.code {

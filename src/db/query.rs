@@ -1,8 +1,9 @@
 //! Query execution and result formatting.
 
-use crate::app::{ObjectNode, QueryResult};
+use crate::app::{ObjectNode, QueryResult, ResultSet};
 use crate::db::ConnectionHandle;
-use claw::SqlValue;
+use claw::{ResultItem, SqlValue};
+use futures_util::TryStreamExt;
 use std::time::Instant;
 
 /// Execute a SQL query and return structured results.
@@ -12,28 +13,52 @@ pub async fn execute_query(
 ) -> Result<QueryResult, Box<dyn std::error::Error>> {
     let start = Instant::now();
 
-    let stream = client.execute(sql, &[]).await?;
+    let mut stream = client.execute(sql, &[]).await?;
 
-    // Get columns
-    let mut stream = stream;
-    let cols = stream.columns().await?;
-    let columns: Vec<String> = match cols {
-        Some(c) => c.iter().map(|col| col.name().to_string()).collect(),
-        None => Vec::new(),
-    };
+    let mut result_sets = Vec::new();
+    let mut current_columns: Vec<String> = Vec::new();
+    let mut current_rows: Vec<Vec<String>> = Vec::new();
 
-    // Collect rows
-    let result_rows = stream.into_first_result().await?;
-    let rows: Vec<Vec<String>> = result_rows
-        .into_iter()
-        .map(|row| row.into_iter().map(|val| format_sql_value(&val)).collect())
-        .collect();
+    while let Some(item) = stream.try_next().await? {
+        match item {
+            ResultItem::Metadata(schema) => {
+                // Save previous resultset if it had rows or columns
+                if !current_columns.is_empty() || !current_rows.is_empty() {
+                    result_sets.push(ResultSet {
+                        columns: std::mem::take(&mut current_columns),
+                        rows: std::mem::take(&mut current_rows),
+                    });
+                }
+                current_columns = schema
+                    .columns()
+                    .iter()
+                    .map(|c| c.name().to_string())
+                    .collect();
+            }
+            ResultItem::Row(row) => {
+                // If we haven't seen metadata yet, get columns from the row
+                if current_columns.is_empty() {
+                    current_columns = row.columns().iter().map(|c| c.name().to_string()).collect();
+                }
+                let vals: Vec<String> = row.into_iter().map(|val| format_sql_value(&val)).collect();
+                current_rows.push(vals);
+            }
+            ResultItem::Message(_) => {} // skip info messages
+        }
+    }
+
+    // Don't forget the last resultset
+    if !current_columns.is_empty() || !current_rows.is_empty() {
+        result_sets.push(ResultSet {
+            columns: current_columns,
+            rows: current_rows,
+        });
+    }
 
     let elapsed_ms = start.elapsed().as_millis();
 
     Ok(QueryResult {
-        columns,
-        rows,
+        result_sets,
         elapsed_ms,
         error: None,
     })

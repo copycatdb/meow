@@ -91,55 +91,58 @@ fn print_table(
     writer: &mut dyn Write,
     result: &crate::app::QueryResult,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if result.columns.is_empty() {
-        return Ok(());
-    }
+    for (set_idx, rs) in result.result_sets.iter().enumerate() {
+        if rs.columns.is_empty() {
+            continue;
+        }
 
-    // Calculate column widths
-    let widths: Vec<usize> = result
-        .columns
-        .iter()
-        .enumerate()
-        .map(|(i, col)| {
-            let max_data = result
-                .rows
-                .iter()
-                .map(|r| r.get(i).map(|s| s.len()).unwrap_or(0))
-                .max()
-                .unwrap_or(0);
-            col.len().max(max_data)
-        })
-        .collect();
+        if result.result_sets.len() > 1 {
+            writeln!(writer, "-- Result Set {} --", set_idx + 1)?;
+        }
 
-    // Header
-    let header: Vec<String> = result
-        .columns
-        .iter()
-        .zip(&widths)
-        .map(|(c, w)| format!("{:<width$}", c, width = w))
-        .collect();
-    writeln!(writer, "{}", header.join(" | "))?;
+        // Calculate column widths
+        let widths: Vec<usize> = rs
+            .columns
+            .iter()
+            .enumerate()
+            .map(|(i, col)| {
+                let max_data = rs
+                    .rows
+                    .iter()
+                    .map(|r| r.get(i).map(|s| s.len()).unwrap_or(0))
+                    .max()
+                    .unwrap_or(0);
+                col.len().max(max_data)
+            })
+            .collect();
 
-    // Separator
-    let sep: Vec<String> = widths.iter().map(|w| "-".repeat(*w)).collect();
-    writeln!(writer, "{}", sep.join("-+-"))?;
-
-    // Data rows
-    for row in &result.rows {
-        let cells: Vec<String> = row
+        // Header
+        let header: Vec<String> = rs
+            .columns
             .iter()
             .zip(&widths)
-            .map(|(val, w)| format!("{:<width$}", val, width = w))
+            .map(|(c, w)| format!("{:<width$}", c, width = w))
             .collect();
-        writeln!(writer, "{}", cells.join(" | "))?;
+        writeln!(writer, "{}", header.join(" | "))?;
+
+        // Separator
+        let sep: Vec<String> = widths.iter().map(|w| "-".repeat(*w)).collect();
+        writeln!(writer, "{}", sep.join("-+-"))?;
+
+        // Data rows
+        for row in &rs.rows {
+            let cells: Vec<String> = row
+                .iter()
+                .zip(&widths)
+                .map(|(val, w)| format!("{:<width$}", val, width = w))
+                .collect();
+            writeln!(writer, "{}", cells.join(" | "))?;
+        }
+
+        writeln!(writer, "\n({} rows)", rs.rows.len())?;
     }
 
-    writeln!(
-        writer,
-        "\n({} rows, {}ms)",
-        result.rows.len(),
-        result.elapsed_ms
-    )?;
+    writeln!(writer, "({}ms)", result.elapsed_ms)?;
 
     Ok(())
 }
@@ -149,19 +152,21 @@ fn print_csv(
     writer: &mut dyn Write,
     result: &crate::app::QueryResult,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    writeln!(writer, "{}", result.columns.join(","))?;
-    for row in &result.rows {
-        let escaped: Vec<String> = row
-            .iter()
-            .map(|v| {
-                if v.contains(',') || v.contains('"') || v.contains('\n') {
-                    format!("\"{}\"", v.replace('"', "\"\""))
-                } else {
-                    v.clone()
-                }
-            })
-            .collect();
-        writeln!(writer, "{}", escaped.join(","))?;
+    for rs in &result.result_sets {
+        writeln!(writer, "{}", rs.columns.join(","))?;
+        for row in &rs.rows {
+            let escaped: Vec<String> = row
+                .iter()
+                .map(|v| {
+                    if v.contains(',') || v.contains('"') || v.contains('\n') {
+                        format!("\"{}\"", v.replace('"', "\"\""))
+                    } else {
+                        v.clone()
+                    }
+                })
+                .collect();
+            writeln!(writer, "{}", escaped.join(","))?;
+        }
     }
     Ok(())
 }
@@ -171,28 +176,63 @@ fn print_json(
     writer: &mut dyn Write,
     result: &crate::app::QueryResult,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    writeln!(writer, "[")?;
-    for (i, row) in result.rows.iter().enumerate() {
-        write!(writer, "  {{")?;
-        for (j, (col, val)) in result.columns.iter().zip(row).enumerate() {
-            write!(
-                writer,
-                "\"{}\": \"{}\"",
-                col,
-                val.replace('\\', "\\\\").replace('"', "\\\"")
-            )?;
-            if j + 1 < result.columns.len() {
-                write!(writer, ", ")?;
+    if result.result_sets.len() == 1 {
+        let rs = &result.result_sets[0];
+        writeln!(writer, "[")?;
+        for (i, row) in rs.rows.iter().enumerate() {
+            write!(writer, "  {{")?;
+            for (j, (col, val)) in rs.columns.iter().zip(row).enumerate() {
+                write!(
+                    writer,
+                    "\"{}\": \"{}\"",
+                    col,
+                    val.replace('\\', "\\\\").replace('"', "\\\"")
+                )?;
+                if j + 1 < rs.columns.len() {
+                    write!(writer, ", ")?;
+                }
+            }
+            write!(writer, "}}")?;
+            if i + 1 < rs.rows.len() {
+                writeln!(writer, ",")?;
+            } else {
+                writeln!(writer)?;
             }
         }
-        write!(writer, "}}")?;
-        if i + 1 < result.rows.len() {
-            writeln!(writer, ",")?;
-        } else {
-            writeln!(writer)?;
+        writeln!(writer, "]")?;
+    } else {
+        writeln!(writer, "[")?;
+        for (set_idx, rs) in result.result_sets.iter().enumerate() {
+            writeln!(writer, "  [")?;
+            for (i, row) in rs.rows.iter().enumerate() {
+                write!(writer, "    {{")?;
+                for (j, (col, val)) in rs.columns.iter().zip(row).enumerate() {
+                    write!(
+                        writer,
+                        "\"{}\": \"{}\"",
+                        col,
+                        val.replace('\\', "\\\\").replace('"', "\\\"")
+                    )?;
+                    if j + 1 < rs.columns.len() {
+                        write!(writer, ", ")?;
+                    }
+                }
+                write!(writer, "}}")?;
+                if i + 1 < rs.rows.len() {
+                    writeln!(writer, ",")?;
+                } else {
+                    writeln!(writer)?;
+                }
+            }
+            write!(writer, "  ]")?;
+            if set_idx + 1 < result.result_sets.len() {
+                writeln!(writer, ",")?;
+            } else {
+                writeln!(writer)?;
+            }
         }
+        writeln!(writer, "]")?;
     }
-    writeln!(writer, "]")?;
     Ok(())
 }
 

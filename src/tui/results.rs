@@ -6,7 +6,8 @@ use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Table};
 
 /// Draw the results pane.
 pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
-    if app.expanded_mode && !app.result.columns.is_empty() && app.result.error.is_none() {
+    let columns = app.result.columns_for(app.current_result_set);
+    if app.expanded_mode && !columns.is_empty() && app.result.error.is_none() {
         draw_expanded(frame, app, area);
     } else {
         draw_table(frame, app, area);
@@ -22,11 +23,15 @@ fn draw_expanded(frame: &mut Frame, app: &App, area: Rect) {
         Style::default().fg(Color::DarkGray)
     };
 
-    let result = &app.result;
+    let rs_idx = app.current_result_set;
+    let columns = app.result.columns_for(rs_idx);
+    let rows = app.result.rows_for(rs_idx);
+    let set_indicator = result_set_indicator(app);
     let title = format!(
-        " Results (expanded) — {} rows  {}ms ",
-        result.rows.len(),
-        result.elapsed_ms
+        " Results (expanded){} — {} rows  {}ms ",
+        set_indicator,
+        rows.len(),
+        app.result.elapsed_ms
     );
 
     let block = Block::default()
@@ -35,15 +40,15 @@ fn draw_expanded(frame: &mut Frame, app: &App, area: Rect) {
         .border_style(border_style);
 
     // Build expanded text lines
-    let max_col_width = result.columns.iter().map(|c| c.len()).max().unwrap_or(0);
+    let max_col_width = columns.iter().map(|c| c.len()).max().unwrap_or(0);
     let mut lines: Vec<ratatui::text::Line> = Vec::new();
-    for (i, row) in result.rows.iter().enumerate() {
+    for (i, row) in rows.iter().enumerate() {
         let sep = format!("-[ RECORD {} ]{}", i + 1, "-".repeat(20));
         lines.push(ratatui::text::Line::from(ratatui::text::Span::styled(
             sep,
             Style::default().fg(Color::Cyan),
         )));
-        for (j, col) in result.columns.iter().enumerate() {
+        for (j, col) in columns.iter().enumerate() {
             let val = row.get(j).map(|s| s.as_str()).unwrap_or("");
             lines.push(ratatui::text::Line::from(format!(
                 "{:>width$} | {}",
@@ -70,31 +75,34 @@ fn draw_table(frame: &mut Frame, app: &App, area: Rect) {
         Style::default().fg(Color::DarkGray)
     };
 
-    let result = &app.result;
+    let rs_idx = app.current_result_set;
+    let columns = app.result.columns_for(rs_idx);
+    let rows = app.result.rows_for(rs_idx);
 
     // Title with row count, timing, and scroll hint
-    let title = if let Some(ref err) = result.error {
+    let title = if let Some(ref err) = app.result.error {
         format!(" Results — Error: {} ", err)
-    } else if result.rows.is_empty() && result.columns.is_empty() {
+    } else if rows.is_empty() && columns.is_empty() {
         " Results ".to_string()
     } else {
-        let col_info = if result.columns.len() > 1 {
+        let set_indicator = result_set_indicator(app);
+        let col_info = if columns.len() > 1 {
             format!(
                 " (cols {}-{}/{})",
                 app.result_col_scroll + 1,
-                result
-                    .columns
+                columns
                     .len()
                     .min(app.result_col_scroll + visible_col_count(app, area)),
-                result.columns.len()
+                columns.len()
             )
         } else {
             String::new()
         };
         format!(
-            " Results — {} rows  {}ms{} ",
-            result.rows.len(),
-            result.elapsed_ms,
+            " Results{} — {} rows  {}ms{} ",
+            set_indicator,
+            rows.len(),
+            app.result.elapsed_ms,
             col_info
         )
     };
@@ -104,8 +112,8 @@ fn draw_table(frame: &mut Frame, app: &App, area: Rect) {
         .title(title)
         .border_style(border_style);
 
-    if result.columns.is_empty() {
-        let msg = if let Some(ref err) = result.error {
+    if columns.is_empty() {
+        let msg = if let Some(ref err) = app.result.error {
             err.clone()
         } else if app.query_running {
             "Running query...".to_string()
@@ -122,13 +130,11 @@ fn draw_table(frame: &mut Frame, app: &App, area: Rect) {
     let col_offset = app.result_col_scroll;
 
     // Compute column widths for ALL columns (needed for slicing)
-    let all_widths: Vec<u16> = result
-        .columns
+    let all_widths: Vec<u16> = columns
         .iter()
         .enumerate()
         .map(|(i, col)| {
-            let max_data = result
-                .rows
+            let max_data = rows
                 .iter()
                 .map(|r| r.get(i).map(|s| s.len()).unwrap_or(0))
                 .max()
@@ -160,15 +166,12 @@ fn draw_table(frame: &mut Frame, app: &App, area: Rect) {
     // Build header (visible columns only)
     let header_cells: Vec<Cell> = visible_cols
         .clone()
-        .map(|i| {
-            Cell::from(result.columns[i].as_str()).style(Style::default().fg(Color::Cyan).bold())
-        })
+        .map(|i| Cell::from(columns[i].as_str()).style(Style::default().fg(Color::Cyan).bold()))
         .collect();
     let header = Row::new(header_cells).height(1);
 
     // Build rows with vertical scroll, horizontal slice
-    let visible_rows: Vec<Row> = result
-        .rows
+    let visible_rows: Vec<Row> = rows
         .iter()
         .skip(app.result_scroll)
         .map(|row_data| {
@@ -188,20 +191,33 @@ fn draw_table(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(table, area);
 }
 
+/// Build a result set indicator string like " — Set 1/3" when there are multiple sets.
+fn result_set_indicator(app: &App) -> String {
+    if app.result.result_sets.len() > 1 {
+        format!(
+            " — Set {}/{}",
+            app.current_result_set + 1,
+            app.result.result_sets.len()
+        )
+    } else {
+        String::new()
+    }
+}
+
 /// Estimate how many columns are visible from the current scroll offset.
 fn visible_col_count(app: &App, area: Rect) -> usize {
+    let columns = app.result.columns_for(app.current_result_set);
+    let rows = app.result.rows_for(app.current_result_set);
     let available = area.width.saturating_sub(2) as usize;
     let mut total = 0;
     let mut count = 0;
-    for i in app.result_col_scroll..app.result.columns.len() {
-        let max_data = app
-            .result
-            .rows
+    for (i, col) in columns.iter().enumerate().skip(app.result_col_scroll) {
+        let max_data = rows
             .iter()
             .map(|r| r.get(i).map(|s| s.len()).unwrap_or(0))
             .max()
             .unwrap_or(0);
-        let w = app.result.columns[i].len().max(max_data).min(50) + 2;
+        let w = col.len().max(max_data).min(50) + 2;
         total += w;
         if total > available && count > 0 {
             break;

@@ -9,10 +9,20 @@ pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
     let left = format!(" {} | {} ", app.connection_info, app.current_database);
     let right = if app.query_running {
         " ⏳ Running... ".to_string()
-    } else if !app.result.columns.is_empty() {
+    } else if !app.result.columns_for(app.current_result_set).is_empty() {
+        let set_info = if app.result.result_sets.len() > 1 {
+            format!(
+                "Set {}/{} | ",
+                app.current_result_set + 1,
+                app.result.result_sets.len()
+            )
+        } else {
+            String::new()
+        };
         format!(
-            " {} rows | {}ms ",
-            app.result.rows.len(),
+            " {}{} rows | {}ms ",
+            set_info,
+            app.result.rows_for(app.current_result_set).len(),
             app.result.elapsed_ms
         )
     } else {

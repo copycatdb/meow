@@ -27,17 +27,64 @@ pub struct ObjectNode {
     pub children: Vec<ObjectNode>,
 }
 
-/// Query result data ready for display.
+/// A single result set from a query.
 #[derive(Debug, Clone, Default)]
-pub struct QueryResult {
+pub struct ResultSet {
     /// Column headers.
     pub columns: Vec<String>,
     /// Row data as strings.
     pub rows: Vec<Vec<String>>,
+}
+
+/// Query result data ready for display.
+#[derive(Debug, Clone, Default)]
+pub struct QueryResult {
+    /// All result sets from the query.
+    pub result_sets: Vec<ResultSet>,
     /// How long the query took, in milliseconds.
     pub elapsed_ms: u128,
     /// Optional error message.
     pub error: Option<String>,
+}
+
+impl QueryResult {
+    /// Get columns of the current (or first) result set.
+    pub fn columns(&self) -> &[String] {
+        self.result_sets
+            .first()
+            .map(|rs| rs.columns.as_slice())
+            .unwrap_or(&[])
+    }
+
+    /// Get rows of a specific result set.
+    pub fn rows_for(&self, index: usize) -> &[Vec<String>] {
+        self.result_sets
+            .get(index)
+            .map(|rs| rs.rows.as_slice())
+            .unwrap_or(&[])
+    }
+
+    /// Get columns of a specific result set.
+    pub fn columns_for(&self, index: usize) -> &[String] {
+        self.result_sets
+            .get(index)
+            .map(|rs| rs.columns.as_slice())
+            .unwrap_or(&[])
+    }
+
+    /// Total row count across all result sets.
+    pub fn total_rows(&self) -> usize {
+        self.result_sets.iter().map(|rs| rs.rows.len()).sum()
+    }
+
+    /// Helper to create a single-resultset QueryResult.
+    pub fn single(columns: Vec<String>, rows: Vec<Vec<String>>, elapsed_ms: u128) -> Self {
+        Self {
+            result_sets: vec![ResultSet { columns, rows }],
+            elapsed_ms,
+            error: None,
+        }
+    }
 }
 
 /// The main application state.
@@ -74,6 +121,8 @@ pub struct App {
     pub show_help: bool,
     /// Autocomplete state.
     pub autocomplete: Autocomplete,
+    /// Which result set is currently displayed (for multi-resultset queries).
+    pub current_result_set: usize,
     /// Expanded display mode (vertical record layout).
     pub expanded_mode: bool,
     /// Show query timing in results.
@@ -108,6 +157,7 @@ impl App {
             history_index: None,
             show_help: false,
             autocomplete: Autocomplete::default(),
+            current_result_set: 0,
             expanded_mode: false,
             show_timing: false,
             user: user.to_string(),
@@ -206,7 +256,8 @@ impl App {
 
     /// Scroll results down.
     pub fn scroll_results_down(&mut self) {
-        if self.result_scroll + 1 < self.result.rows.len() {
+        let row_count = self.result.rows_for(self.current_result_set).len();
+        if self.result_scroll + 1 < row_count {
             self.result_scroll += 1;
         }
     }
@@ -218,8 +269,8 @@ impl App {
 
     /// Scroll results right (horizontal).
     pub fn scroll_results_right(&mut self) {
-        if !self.result.columns.is_empty() && self.result_col_scroll + 1 < self.result.columns.len()
-        {
+        let col_count = self.result.columns_for(self.current_result_set).len();
+        if col_count > 0 && self.result_col_scroll + 1 < col_count {
             self.result_col_scroll += 1;
         }
     }
@@ -237,6 +288,24 @@ impl App {
     /// Scroll sidebar up.
     pub fn scroll_sidebar_up(&mut self) {
         self.sidebar_scroll = self.sidebar_scroll.saturating_sub(1);
+    }
+
+    /// Navigate to the next result set.
+    pub fn next_result_set(&mut self) {
+        if self.current_result_set + 1 < self.result.result_sets.len() {
+            self.current_result_set += 1;
+            self.result_scroll = 0;
+            self.result_col_scroll = 0;
+        }
+    }
+
+    /// Navigate to the previous result set.
+    pub fn prev_result_set(&mut self) {
+        if self.current_result_set > 0 {
+            self.current_result_set -= 1;
+            self.result_scroll = 0;
+            self.result_col_scroll = 0;
+        }
     }
 
     /// Toggle expand/collapse on the selected sidebar node.
