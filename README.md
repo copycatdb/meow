@@ -62,6 +62,22 @@ echo "SELECT name FROM sys.databases" | meow -S localhost,1433 -U sa -P yourpass
 | `-o, --output` | Write results to file | — |
 | `--format` | Output format: `table`, `csv`, `json` | `table` |
 
+## Slash Commands
+
+Inspired by PostgreSQL's `psql`, meow supports backslash meta-commands for quick schema browsing and session control. Type `\?` for the full list.
+
+```
+\d              List all tables and views
+\d <table>      Describe table columns
+\dt / \dv       List tables / views
+\di / \df       List indexes / functions
+\x              Toggle expanded display
+\conninfo       Show connection details
+\c <db>         Switch database
+```
+
+📖 **[Full slash command reference →](docs/SLASH-COMMANDS.md)**
+
 ## Key Bindings
 
 | Key | Action |
