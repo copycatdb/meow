@@ -82,6 +82,8 @@ Inspired by PostgreSQL's `psql`, meow supports backslash meta-commands for quick
 
 ## Key Bindings
 
+> **macOS:** All keybindings use Ctrl, not Cmd — this is standard for terminal applications.
+
 | Key | Action |
 |-----|--------|
 | `Ctrl+Enter` / `F5` | Execute query |
