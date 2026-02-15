@@ -74,11 +74,17 @@ pub struct App {
     pub show_help: bool,
     /// Autocomplete state.
     pub autocomplete: Autocomplete,
+    /// Expanded display mode (vertical record layout).
+    pub expanded_mode: bool,
+    /// Show query timing in results.
+    pub show_timing: bool,
+    /// Username used for the connection.
+    pub user: String,
 }
 
 impl App {
     /// Create a new App with default state.
-    pub fn new(host: &str, port: u16, database: &str) -> Self {
+    pub fn new(host: &str, port: u16, database: &str, user: &str) -> Self {
         let mut editor = tui_textarea::TextArea::default();
         editor.set_cursor_line_style(ratatui::style::Style::default());
         editor.set_line_number_style(
@@ -102,6 +108,9 @@ impl App {
             history_index: None,
             show_help: false,
             autocomplete: Autocomplete::default(),
+            expanded_mode: false,
+            show_timing: false,
+            user: user.to_string(),
         }
     }
 

@@ -9,6 +9,7 @@ pub mod ui;
 
 use crate::Args;
 use crate::app::{App, FocusPane};
+use crate::commands;
 use crate::db;
 use crossterm::{
     event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
@@ -29,7 +30,7 @@ pub async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         db::connect(&host, port, user, password, &args.database, args.trust_cert).await?;
 
     // Initialize app state
-    let mut app = App::new(&host, port, &args.database);
+    let mut app = App::new(&host, port, &args.database, user);
 
     // Load object tree
     app.load_objects(&mut client).await;
@@ -111,22 +112,86 @@ async fn handle_key(
         (KeyModifiers::CONTROL, KeyCode::Enter) | (_, KeyCode::F(5)) => {
             let sql = app.get_editor_text();
             if !sql.trim().is_empty() {
-                app.query_running = true;
                 app.push_history();
-                match db::query::execute_query(client, &sql).await {
-                    Ok(result) => {
-                        app.result = result;
-                        app.result_scroll = 0;
-                        app.result_col_scroll = 0;
+                // Check for slash commands
+                if let Some(cmd) = commands::parse(&sql) {
+                    let action = commands::to_action(
+                        &cmd,
+                        &app.connection_info,
+                        &app.current_database,
+                        &app.user,
+                    );
+                    match action {
+                        commands::CommandAction::ExecuteSql(query) => {
+                            app.query_running = true;
+                            match db::query::execute_query(client, &query).await {
+                                Ok(result) => {
+                                    // If it was a USE command, update current database
+                                    if let commands::SlashCommand::UseDatabase(ref db_name) = cmd {
+                                        app.current_database = db_name.clone();
+                                    }
+                                    app.result = result;
+                                    app.result_scroll = 0;
+                                    app.result_col_scroll = 0;
+                                }
+                                Err(e) => {
+                                    app.result = crate::app::QueryResult {
+                                        error: Some(e.to_string()),
+                                        ..Default::default()
+                                    };
+                                }
+                            }
+                            app.query_running = false;
+                        }
+                        commands::CommandAction::DisplayMessage { columns, rows } => {
+                            app.result = crate::app::QueryResult {
+                                columns,
+                                rows,
+                                elapsed_ms: 0,
+                                error: None,
+                            };
+                            app.result_scroll = 0;
+                            app.result_col_scroll = 0;
+                        }
+                        commands::CommandAction::ToggleExpanded => {
+                            app.expanded_mode = !app.expanded_mode;
+                            let state = if app.expanded_mode { "ON" } else { "OFF" };
+                            app.result = crate::app::QueryResult {
+                                columns: vec!["Status".to_string()],
+                                rows: vec![vec![format!("Expanded display is {}", state)]],
+                                elapsed_ms: 0,
+                                error: None,
+                            };
+                        }
+                        commands::CommandAction::ToggleTiming => {
+                            app.show_timing = !app.show_timing;
+                            let state = if app.show_timing { "ON" } else { "OFF" };
+                            app.result = crate::app::QueryResult {
+                                columns: vec!["Status".to_string()],
+                                rows: vec![vec![format!("Timing is {}", state)]],
+                                elapsed_ms: 0,
+                                error: None,
+                            };
+                        }
+                        commands::CommandAction::Quit => return Ok(true),
                     }
-                    Err(e) => {
-                        app.result = crate::app::QueryResult {
-                            error: Some(e.to_string()),
-                            ..Default::default()
-                        };
+                } else {
+                    app.query_running = true;
+                    match db::query::execute_query(client, &sql).await {
+                        Ok(result) => {
+                            app.result = result;
+                            app.result_scroll = 0;
+                            app.result_col_scroll = 0;
+                        }
+                        Err(e) => {
+                            app.result = crate::app::QueryResult {
+                                error: Some(e.to_string()),
+                                ..Default::default()
+                            };
+                        }
                     }
+                    app.query_running = false;
                 }
-                app.query_running = false;
             }
             return Ok(false);
         }

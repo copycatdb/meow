@@ -6,6 +6,63 @@ use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Table};
 
 /// Draw the results pane.
 pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
+    if app.expanded_mode && !app.result.columns.is_empty() && app.result.error.is_none() {
+        draw_expanded(frame, app, area);
+    } else {
+        draw_table(frame, app, area);
+    }
+}
+
+/// Draw results in expanded (vertical record) mode.
+fn draw_expanded(frame: &mut Frame, app: &App, area: Rect) {
+    let focused = app.focus == FocusPane::Results;
+    let border_style = if focused {
+        Style::default().fg(Color::Cyan)
+    } else {
+        Style::default().fg(Color::DarkGray)
+    };
+
+    let result = &app.result;
+    let title = format!(
+        " Results (expanded) — {} rows  {}ms ",
+        result.rows.len(),
+        result.elapsed_ms
+    );
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(title)
+        .border_style(border_style);
+
+    // Build expanded text lines
+    let max_col_width = result.columns.iter().map(|c| c.len()).max().unwrap_or(0);
+    let mut lines: Vec<ratatui::text::Line> = Vec::new();
+    for (i, row) in result.rows.iter().enumerate() {
+        let sep = format!("-[ RECORD {} ]{}", i + 1, "-".repeat(20));
+        lines.push(ratatui::text::Line::from(ratatui::text::Span::styled(
+            sep,
+            Style::default().fg(Color::Cyan),
+        )));
+        for (j, col) in result.columns.iter().enumerate() {
+            let val = row.get(j).map(|s| s.as_str()).unwrap_or("");
+            lines.push(ratatui::text::Line::from(format!(
+                "{:>width$} | {}",
+                col,
+                val,
+                width = max_col_width
+            )));
+        }
+    }
+
+    let text = ratatui::text::Text::from(lines);
+    let paragraph = Paragraph::new(text)
+        .block(block)
+        .scroll((app.result_scroll as u16, 0));
+    frame.render_widget(paragraph, area);
+}
+
+/// Draw the results as a normal table.
+fn draw_table(frame: &mut Frame, app: &App, area: Rect) {
     let focused = app.focus == FocusPane::Results;
     let border_style = if focused {
         Style::default().fg(Color::Cyan)

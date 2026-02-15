@@ -468,7 +468,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -1359,7 +1359,7 @@ dependencies = [
 [[package]]
 name = "tabby"
 version = "0.1.0"
-source = "git+https://github.com/copycatdb/tabby.git?branch=main#d087746dc1576675e553439f6907476e3f973411"
+source = "git+https://github.com/copycatdb/tabby.git?branch=main#c60da3a4a8dfdb77b25e0b130a9d2bdb3dcc2d40"
 dependencies = [
  "async-trait",
  "asynchronous-codec",
