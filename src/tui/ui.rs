@@ -49,10 +49,12 @@ pub fn draw(frame: &mut Frame, app: &App) {
     statusbar::draw(frame, app, chunks[2]);
 
     // Key bindings bar
-    let keys = Paragraph::new(
-        " Ctrl+Enter: Run │ Tab: Switch Pane │ Ctrl+D: Sidebar │ Ctrl+Q: Quit │ F1: Help",
-    )
-    .style(
+    let keys_text = if app.result.result_sets.len() > 1 {
+        " Ctrl+Enter: Run │ Tab: Switch Pane │ [/]: Prev/Next Set │ Ctrl+D: Sidebar │ Ctrl+Q: Quit │ F1: Help"
+    } else {
+        " Ctrl+Enter: Run │ Tab: Switch Pane │ Ctrl+D: Sidebar │ Ctrl+Q: Quit │ F1: Help"
+    };
+    let keys = Paragraph::new(keys_text).style(
         Style::default()
             .fg(Color::DarkGray)
             .bg(Color::Rgb(30, 30, 46)),
@@ -101,6 +103,7 @@ fn draw_help_overlay(frame: &mut Frame, area: Rect) {
         "",
         "  Results pane:",
         "    ↑/↓              Scroll results",
+        "    [ / ]            Previous / next result set",
         "",
         "  Sidebar:",
         "    ↑/↓              Navigate",
