@@ -29,11 +29,8 @@ jobs:
             target: aarch64-unknown-linux-gnu
             artifact: meow-linux-arm64
           - os: macos-latest
-            target: aarch64-apple-darwin
-            artifact: meow-macos-arm64
-          - os: macos-13
-            target: x86_64-apple-darwin
-            artifact: meow-macos-x64
+            artifact: meow-macos-universal
+            universal: true
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact: meow-windows-x64
@@ -52,7 +49,20 @@ jobs:
           cargo clippy -- -D warnings
 
       - name: Build
+        if: "!matrix.universal"
         run: cargo build --release
+
+      - name: Build universal (macOS)
+        if: matrix.universal
+        run: |
+          rustup target add x86_64-apple-darwin aarch64-apple-darwin
+          cargo build --release --target x86_64-apple-darwin
+          cargo build --release --target aarch64-apple-darwin
+          mkdir -p target/release
+          lipo -create \
+            target/x86_64-apple-darwin/release/meow \
+            target/aarch64-apple-darwin/release/meow \
+            -output target/release/meow
 
       - name: Prepare artifact (Unix)
         if: runner.os != 'Windows'
