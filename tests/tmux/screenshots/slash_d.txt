@@ -14,7 +14,7 @@
 │                    ││                                                                                                │
 │                    ││                                                                                                │
 │                    │└────────────────────────────────────────────────────────────────────────────────────────────────┘
-│                    │┌ Results — 17 rows  27ms (cols 1-3/3) ──────────────────────────────────────────────────────────┐
+│                    │┌ Results — 17 rows  8ms (cols 1-3/3) ───────────────────────────────────────────────────────────┐
 │                    ││TABLE_SCHEMA   TABLE_NAME              TABLE_TYPE                                               │
 │                    ││dbo            bench_100k              BASE TABLE                                               │
 │                    ││dbo            bench_data              BASE TABLE                                               │
@@ -33,5 +33,5 @@
 │                    ││dbo            test_edge               BASE TABLE                                               │
 │                    ││dbo            test_param              BASE TABLE                                               │
 └────────────────────┘└────────────────────────────────────────────────────────────────────────────────────────────────┘
- localhost:1433 | master                                                                                 17 rows | 27ms
+ localhost:1433 | master                                                                                  17 rows | 8ms
  Ctrl+Enter: Run │ Tab: Switch Pane │ Ctrl+D: Sidebar │ Ctrl+Q: Quit │ F1: Help

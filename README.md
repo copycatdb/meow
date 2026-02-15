@@ -6,7 +6,9 @@ A beautiful TUI client for Microsoft SQL Server, powered by [tabby](https://gith
 
 Part of the [CopyCat](https://github.com/copycatdb) ecosystem.
 
-![screenshot placeholder](https://via.placeholder.com/800x500?text=meow+TUI+screenshot+coming+soon)
+![meow slash commands](docs/images/slash_d.png)
+
+![meow multi-resultset](docs/images/multi_set1.png)
 
 ## Installation
 
@@ -89,7 +91,15 @@ Inspired by PostgreSQL's `psql`, meow supports backslash meta-commands for quick
 | `Ctrl+Q` | Quit |
 | `F1` | Toggle help overlay |
 | `↑/↓` | Scroll results (when focused) |
+| `[` / `]` | Previous / next result set (when focused on results) |
 | `Enter` | Expand/collapse sidebar node |
+
+## Multi-Resultset Support
+
+Queries that return multiple result sets (e.g. `SELECT 1; SELECT 2` or stored procedures) are fully supported. Each result set has its own columns and rows — use `[` and `]` to navigate between them when the results pane is focused.
+
+![Set 1/2](docs/images/multi_set1.png)
+![Set 2/2](docs/images/multi_set2.png)
 
 ## Architecture
 
@@ -97,6 +107,7 @@ Inspired by PostgreSQL's `psql`, meow supports backslash meta-commands for quick
 src/
 ├── main.rs          — entry point, CLI args, mode dispatch
 ├── app.rs           — App state machine
+├── commands.rs      — slash command parser and SQL generation
 ├── tui/
 │   ├── mod.rs       — TUI setup/teardown, event loop
 │   ├── ui.rs        — layout and rendering
@@ -106,7 +117,7 @@ src/
 │   └── statusbar.rs — connection info, timing
 ├── db/
 │   ├── mod.rs       — connection management
-│   └── query.rs     — query execution, result formatting
+│   └── query.rs     — query execution, multi-resultset collection
 └── cli/
     └── mod.rs       — non-interactive CLI mode
 ```
