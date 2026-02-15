@@ -1,9 +1,13 @@
-name: CI
+name: Build
 
 on:
+  workflow_dispatch:
+    inputs:
+      build_label:
+        description: 'Build label (e.g. "test", "demo")'
+        required: false
+        default: 'dev'
   push:
-    branches: [main]
-  pull_request:
     branches: [main]
 
 env:
@@ -12,16 +16,60 @@ env:
 
 jobs:
   build:
-    name: Build & Lint
-    runs-on: ubuntu-latest
+    name: Build (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact: meow-linux-x64
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            artifact: meow-linux-arm64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact: meow-macos-arm64
+          - os: macos-13
+            target: x86_64-apple-darwin
+            artifact: meow-macos-x64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: meow-windows-x64
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
-      - name: Format
-        run: cargo fmt --all -- --check
-      - name: Clippy
-        run: cargo clippy -- -D warnings
+
+      - name: Lint (Linux x64 only)
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy -- -D warnings
+
       - name: Build
         run: cargo build --release
+
+      - name: Prepare artifact (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p dist
+          cp target/release/meow dist/
+          chmod +x dist/meow
+
+      - name: Prepare artifact (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          mkdir dist
+          copy target\release\meow.exe dist\
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/
+          retention-days: 30
